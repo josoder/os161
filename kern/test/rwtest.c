@@ -3,6 +3,11 @@
  * testing. Please consider this before changing anything in this file.
  */
 
+
+#define CREATELOOPS		8
+#define NTHREADS      32
+#define NLOCKLOOPS    120
+
 #include <types.h>
 #include <lib.h>
 #include <clock.h>
@@ -12,18 +17,57 @@
 #include <kern/test161.h>
 #include <spinlock.h>
 
-/*
- * Use these stubs to test your reader-writer locks.
- */
 
+
+static struct rwlock *rwtestlock = NULL;
+static struct semaphore *donesem = NULL;
+//static struct cv *testcv = NULL;
+
+static bool test_status = TEST161_FAIL;
+
+
+// Test init and destroy
 int rwtest(int nargs, char **args) {
 	(void)nargs;
 	(void)args;
 
-	kprintf_n("rwt1 unimplemented\n");
-	success(TEST161_FAIL, SECRET, "rwt1");
+	int i;
+
+	kprintf_n("Starting rwt1...");
+	for (i=0; i<CREATELOOPS; i++) {
+		kprintf_t(".");
+		rwtestlock = rwlock_create("testlock");
+
+		if (rwtestlock == NULL) {
+			panic("rwt1: lock_create failed\n");
+		}
+		rwlock_acquire_read(rwtestlock); 
+		if(rwtestlock->readers==0) {
+			panic("rwt1: lock_acquire failed\n"); 
+		}
+
+		rwlock_release_read(rwtestlock); 
+		
+		if(rwtestlock->readers>0) {
+			panic("rwt1: lock_release failed\n"); 
+		}
+		
+		donesem = sem_create("donesem", 0);
+		if (rwtestlock == NULL) {
+			panic("rwt1: sem_create failed\n");
+		}
+		sem_destroy(donesem);
+		rwlock_destroy(rwtestlock);
+	}
+	
+
+	kprintf_t("\n");
+	test_status = TEST161_SUCCESS;
+	success(test_status, SECRET, "rwt1");
+
 
 	return 0;
+
 }
 
 int rwtest2(int nargs, char **args) {

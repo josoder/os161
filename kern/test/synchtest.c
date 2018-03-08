@@ -511,6 +511,7 @@ cvtestthread(void *junk, unsigned long num)
 		kprintf_n("Thread %lu\n", testval2);
 		testval1 = (testval1 + NTHREADS - 1) % NTHREADS;
 		lock_release(testlock);
+		
 	}
 	V(donesem);
 }
@@ -556,6 +557,7 @@ cvtest(int nargs, char **args)
 		}
 	}
 	for (i=0; i<NTHREADS; i++) {
+		kprintf_n("here?"); 
 		kprintf_t(".");
 		P(donesem);
 	}
@@ -889,3 +891,4 @@ cvtest5(int nargs, char **args) {
 
 	return 0;
 }
+

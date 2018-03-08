@@ -34,7 +34,7 @@
  * Header file for synchronization primitives.
  */
 
-
+#include <threadlist.h> 
 #include <spinlock.h>
 
 /*
@@ -75,8 +75,11 @@ void V(struct semaphore *);
 struct lock {
         char *lk_name;
         HANGMAN_LOCKABLE(lk_hangman);   /* Deadlock detector hook. */
-        // add what you need here
-        // (don't forget to mark things volatile as needed)
+        struct wchan *lk_wchan; 
+	struct spinlock lk_lock;
+	volatile struct thread *lk_thread;
+	volatile bool locked; 
+	// (don't forget to mark things volatile as needed)
 };
 
 struct lock *lock_create(const char *name);
@@ -114,7 +117,9 @@ bool lock_do_i_hold(struct lock *);
 
 struct cv {
         char *cv_name;
-        // add what you need here
+	struct wchan *cv_wchan; 
+	struct spinlock cv_splk;
+	// add what you need here
         // (don't forget to mark things volatile as needed)
 };
 
@@ -150,7 +155,13 @@ void cv_broadcast(struct cv *cv, struct lock *lock);
 
 struct rwlock {
         char *rwlock_name;
-        // add what you need here
+        volatile int writers_waiting;
+	volatile int readers;
+	volatile bool writing; 
+	struct lock *rwlock_mutex; 
+	struct cv *rwlock_write_cv; 	
+	struct cv *rwlock_read_cv;
+	// add what you need here
         // (don't forget to mark things volatile as needed)
 };
 
