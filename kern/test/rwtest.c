@@ -7,7 +7,6 @@
 #define CREATELOOPS		8
 #define NTHREADS      32
 #define NLOCKLOOPS    120
-
 #include <types.h>
 #include <lib.h>
 #include <clock.h>
@@ -21,17 +20,62 @@
 
 static struct rwlock *rwtestlock = NULL;
 static struct semaphore *donesem = NULL;
-//static struct cv *testcv = NULL;
+
+static volatile unsigned long testval1;
+static volatile unsigned long testval2;
+static volatile unsigned long testval3; 
 
 static bool test_status = TEST161_FAIL;
 
+struct spinlock status_lock;
+
+
+
+/*
+static
+void 
+readthread(void *junk, unsigned long num)
+{
+	(void)junk; 
+	int i; 
+}
+*/
+
+static 
+void 
+writethread(void *junk, unsigned long num)
+{
+	(void)junk;
+	kprintf_t(".");
+	
+	int i;
+
+	for (i=0; i<NLOCKLOOPS; i++) {
+		rwlock_acquire_write(rwtestlock);
+		random_yielder(4); 	
+		
+		testval1 = num;
+		testval2 = num*num; 
+		testval3 = num%3; 
+
+		if(testval1 != num){
+			test_status = TEST161_FAIL;
+			rwlock_release_write(rwtestlock); 
+			return; 
+		}	
+		
+		rwlock_release_write(rwtestlock); 
+	}	
+	V(donesem);
+	return; 
+}
 
 // Test init and destroy
 int rwtest(int nargs, char **args) {
 	(void)nargs;
 	(void)args;
 
-	int i;
+	int i, result;
 
 	kprintf_n("Starting rwt1...");
 	for (i=0; i<CREATELOOPS; i++) {
@@ -56,10 +100,27 @@ int rwtest(int nargs, char **args) {
 		if (rwtestlock == NULL) {
 			panic("rwt1: sem_create failed\n");
 		}
-		sem_destroy(donesem);
-		rwlock_destroy(rwtestlock);
+		if(i<CREATELOOPS-1) {
+			sem_destroy(donesem);
+			rwlock_destroy(rwtestlock);
+		}
 	}
 	
+	for(i=0; i<NTHREADS; i++){
+		result = thread_fork("rwlocktest", NULL, writethread, NULL, i);
+		if(result) {
+			panic("rwt1: thread_fork failed %s\n", strerror(result)); 
+		}		
+	}
+	for (i=0; i<NTHREADS; i++) {
+		kprintf_t(".");
+		P(donesem); 
+	}	
+
+	sem_destroy(donesem); 
+	rwlock_destroy(rwtestlock); 
+	rwtestlock = NULL;
+	donesem = NULL; 
 
 	kprintf_t("\n");
 	test_status = TEST161_SUCCESS;

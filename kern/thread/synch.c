@@ -413,7 +413,7 @@ void rwlock_acquire_write(struct rwlock *rwlock)
 
 	lock_acquire(rwlock->rwlock_mutex); 
 	rwlock->writers_waiting++; 
-	while(rwlock->readers>0&&rwlock->writing==true){
+	while(rwlock->readers>0||rwlock->writing==true){
 		cv_wait(rwlock->rwlock_write_cv, rwlock->rwlock_mutex);  
 	}
 	
@@ -428,17 +428,19 @@ rwlock_release_write(struct rwlock *rwlock)
 	KASSERT(rwlock != NULL); 
 	
 	lock_acquire(rwlock->rwlock_mutex);
-	if(!rwlock->writing) return; 
+	if(!rwlock->writing){ 
+		lock_release(rwlock->rwlock_mutex);
+		return; 
+	}
 
 	rwlock->writing = false; 
 	// If there is a writer in the queue let him in 
 	if(rwlock->writers_waiting>0){
-	 	rwlock->writers_waiting--; 
 		cv_signal(rwlock->rwlock_write_cv, rwlock->rwlock_mutex); 
 		lock_release(rwlock->rwlock_mutex); 
 		return; 
 	}
 	// No writer in queue so release all readers
-	cv_broadcast(rwlock->rwlock_write_cv, rwlock->rwlock_mutex); 
+	cv_broadcast(rwlock->rwlock_read_cv, rwlock->rwlock_mutex); 
 	lock_release(rwlock->rwlock_mutex); 
 }
