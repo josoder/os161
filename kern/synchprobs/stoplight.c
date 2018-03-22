@@ -69,50 +69,164 @@
 #include <test.h>
 #include <synch.h>
 
+
+int getdirectionleft(int fromposition);
+int getdirectionstraight(int fromposition); 
+void enterintersection(uint32_t fromposition, uint32_t index); 
+void exit(uint32_t quad, uint32_t index);
+void switchquad(uint32_t current, uint32_t next, uint32_t index);
+
+
+struct lock *quad_locks[4];  
+static struct cv *icv; 
+
+volatile int left_turns; 
+volatile int cars_in_intersection; 
+
+struct lock *wait_lock; 
+
+
+
 /*
  * Called by the driver during initialization.
  */
 
 void
 stoplight_init() {
+	quad_locks[0] = lock_create("qlock0");
+	quad_locks[1] = lock_create("qlock1");
+	quad_locks[2] = lock_create("qlock2");
+	quad_locks[3] = lock_create("qlock3");
+	
+	wait_lock = lock_create("wait lock");
+	
+	if ( wait_lock == NULL ) {
+		panic("failed to init lock"); 
+	}	
+
+	for(int i=0; i<4; i++) {
+		if(quad_locks[i] == NULL) {
+			panic("failed to init lock");
+		}
+	}
+	
+	icv = cv_create("icv"); 
+	if(icv == NULL) {
+		panic("failed to init cv");
+	}
+
+	left_turns = 0; 
+	cars_in_intersection = 0; 
+
 	return;
+}
+
+// Helper methods
+int getdirectionleft(int fromposition){
+	return (fromposition + 2) % 4; 
+}
+
+int getdirectionstraight(int fromposition){
+	return (fromposition + 3) % 4; 
+}
+
+void
+exit(uint32_t quad, uint32_t index) {
+	leaveIntersection(index); 
+	lock_release(quad_locks[quad]);	
+	
+	
+	lock_acquire(wait_lock);
+
+	cv_signal(icv, wait_lock);
+
+	lock_release(wait_lock);
+	
+	cars_in_intersection--; 
+}
+
+void
+enterintersection(uint32_t direction, uint32_t index){
+	
+	lock_acquire(wait_lock); 
+
+	while(cars_in_intersection>=2){
+		cv_wait(icv, wait_lock); 
+	}
+	
+	lock_release(wait_lock); 
+	
+	lock_acquire(quad_locks[direction]);
+       	cars_in_intersection++;
+	inQuadrant(direction, index); 
+}
+
+void 
+switchquad(uint32_t current ,uint32_t next, uint32_t index){ 
+	lock_acquire(quad_locks[next]); 
+	inQuadrant(next, index); 
+	lock_release(quad_locks[current]);
 }
 
 /*
  * Called by the driver during teardown.
- */
+ */ 
 
 void stoplight_cleanup() {
+	for(int i=0; i<4; i++){
+		lock_destroy(quad_locks[i]); 
+	}	
+	
+	cv_destroy(icv); 
+
 	return;
 }
 
 void
 turnright(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	// will only need to get pass through 1 quadrant
+	
+	enterintersection(direction, index); 
+
+	exit(direction, index);
 	return;
 }
+ 	
+
+
 void
 gostraight(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	enterintersection(direction, index); 
+	
+	int straight = getdirectionstraight(direction);
+	
+	switchquad(direction, straight, index);
+
+	// Leave intersection 
+	exit(straight, index);
+
 	return;
+
 }
 void
 turnleft(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	// need to first go straight then to the left, so passing x, (x+3) % 4 and (x+2) % 3 
+	int straight = getdirectionstraight(direction);
+	int left = getdirectionleft(direction);
+	
+	// enter quad x
+	enterintersection(direction, index);
+	
+	// enter the quad straight ahead
+	switchquad(direction, straight, index);
+	// enter the final quad 
+	switchquad(straight, left, index);
+	
+	// exit
+	exit(left, index);
 	return;
 }
+
