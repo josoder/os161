@@ -44,6 +44,7 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <file_syscall.h>
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -59,11 +60,14 @@ runprogram(char *progname)
 	vaddr_t entrypoint, stackptr;
 	int result;
 
+
+
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
 	if (result) {
 		return result;
 	}
+
 
 	/* We should be a new process. */
 	KASSERT(proc_getas() == NULL);
@@ -78,6 +82,8 @@ runprogram(char *progname)
 	/* Switch to it and activate it. */
 	proc_setas(as);
 	as_activate();
+
+	filetable_init();
 
 	/* Load the executable. */
 	result = load_elf(v, &entrypoint);
@@ -101,6 +107,7 @@ runprogram(char *progname)
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
 			  NULL /*userspace addr of environment*/,
 			  stackptr, entrypoint);
+
 
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");

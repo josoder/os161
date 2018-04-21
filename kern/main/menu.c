@@ -48,6 +48,7 @@
 #include "opt-net.h"
 #include "opt-synchprobs.h"
 #include "opt-automationtest.h"
+#include "file_syscall.h"
 
 /*
  * In-kernel menu and command dispatcher.
@@ -126,7 +127,6 @@ common_prog(int nargs, char **args)
 	if (proc == NULL) {
 		return ENOMEM;
 	}
-
 	tc = thread_count;
 
 	result = thread_fork(args[0] /* thread name */,

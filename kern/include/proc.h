@@ -37,10 +37,13 @@
  */
 
 #include <spinlock.h>
+#include <file_syscall.h>
+
 
 struct addrspace;
 struct thread;
 struct vnode;
+struct file_handle; 
 
 /*
  * Process structure.
@@ -69,8 +72,7 @@ struct proc {
 
 	/* VFS */
 	struct vnode *p_cwd;		/* current working directory */
-
-	/* add more material here as needed */
+	struct file_handle *file_table[OPEN_MAX];  /* file table for the current thread */
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */

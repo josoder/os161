@@ -11,7 +11,8 @@ menu.o: ../../main/menu.c ../../include/types.h \
  ../../include/thread.h ../../include/array.h \
  includelinks/machine/thread.h ../../include/setjmp.h \
  includelinks/kern/machine/setjmp.h ../../include/proc.h \
- ../../include/vfs.h ../../include/sfs.h ../../include/fs.h \
- ../../include/vnode.h ../../include/kern/sfs.h ../../include/syscall.h \
- ../../include/test.h ../../include/kern/secret.h opt-synchprobs.h \
- opt-automationtest.h ../../include/prompt.h opt-sfs.h opt-net.h
+ ../../include/file_syscall.h ../../include/vnode.h ../../include/vfs.h \
+ ../../include/sfs.h ../../include/fs.h ../../include/kern/sfs.h \
+ ../../include/syscall.h ../../include/test.h ../../include/kern/secret.h \
+ opt-synchprobs.h opt-automationtest.h ../../include/prompt.h opt-sfs.h \
+ opt-net.h
