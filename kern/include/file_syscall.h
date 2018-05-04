@@ -20,16 +20,19 @@ struct file_handle {
 	struct vnode* file; 
 	int flag; 
 	struct lock* fh_lock;
-       	volatile int nr_of_threads; 	
+       	volatile int nr_of_refs; 	
 };
 
 int 
-sys_open(const char *filename, int flags);
+sys_open(const char *filename, int flags, int* retval);
 
 int 
 sys_write(int fd, void* buf, size_t buflen, int* retval); 
 
 int
 filetable_init(void); 
+
+int
+sys_close(int fd, int* retval);
 
 #endif /* _FILESYSCALL_H_ */

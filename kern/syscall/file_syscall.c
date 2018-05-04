@@ -24,7 +24,6 @@
 struct file_handle*
 create_file_handle(off_t boffset, int flags); 
 
-
 struct file_handle* 
 create_file_handle(off_t boffset, int flags) {
 	struct file_handle* fh = kmalloc(sizeof(struct file_handle));
@@ -100,21 +99,56 @@ filetable_init(void){
 }
 
 int 
-sys_open(const char *userpfilename, int flags) { 	
-	(void) userpfilename; 
-	(void) flags; 	
-/*
-	char *filename;
+sys_open(const char *userpfilename, int flags, int* retval) { 	
+	int res;
+	int how; 
+
+	// R, W, RW? 
+	how = flags & O_ACCMODE; 
+	
+	*retval = -1; 
+
+
+	char *filename=kmalloc(strlen(userpfilename));
 	int result; 
 	size_t len; 
 	
-	result = copyinstr(filename, name, PATH_MAX, &len);   
-
+	result = copyinstr((userptr_t) userpfilename, filename, PATH_MAX, &len);   
+	// invalid userpointer
 	if(result) {
 		return EFAULT; 
 	}
-*/
 	
+	int i;  
+	int fd = -1;  
+	for(i=3; i<=OPEN_MAX; i++){
+		if(curproc->file_table[i]==NULL) {
+			fd = i; 
+		}
+	}
+
+	// File table is full
+	if (fd == -1) {
+		return EMFILE; 
+	}
+	
+	// Open the file
+	struct vnode* newvnode; 	
+	res = vfs_open(filename, flags, 0, &newvnode); 	
+	if(res){
+		kfree(filename); 
+		return res; 
+	}
+
+	// Create a new file_handle 
+	struct file_handle* new_fh=create_file_handle(0, how); 
+	new_fh->file = newvnode; 
+
+	curproc->file_table[fd] = (struct file_handle*)kmalloc(sizeof(struct file_handle)); 
+	curproc->file_table[fd] = new_fh;
+	
+	*retval = fd; 
+
 	return 0; 
 
 }
@@ -152,6 +186,10 @@ sys_write(int fd, void *buf, size_t buflen, int* retval){
 	ku.uio_space = curproc->p_addrspace;
 
 	lock_acquire(current->fh_lock);	
+	// case it was closed by another thread..
+	if(current-> file == NULL){
+		return EIO; 
+	}
 
 	int err; 	
 	err = VOP_WRITE(current->file, &ku);
@@ -162,11 +200,39 @@ sys_write(int fd, void *buf, size_t buflen, int* retval){
 
 	current->offset += ku.uio_offset;
 	*retval = (int) ku.uio_offset; 
-
-
+	
 	lock_release(current->fh_lock);
+	
 
 	return 0; 
+}
+
+int
+sys_close(int fd, int* retval) {
+	*retval = -1; 
+
+	if(fd > OPEN_MAX || fd < 0){
+		return EBADF;
+	}	
+
+	struct file_handle* current = curproc->file_table[fd];
+	if (current == NULL) return EBADF;
+       	
+	lock_acquire(current->fh_lock); 
+	if(current->file!=NULL) {
+		vfs_close(current->file); 	
+	}
+
+	lock_release(current->fh_lock); 
+
+	lock_destroy(current->fh_lock); 
+
+	kfree(current);
+	curproc->file_table[fd] = NULL;
+
+	*retval = 0;
+	return 0;
+
 }
 
 /*
