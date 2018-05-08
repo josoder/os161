@@ -20,7 +20,7 @@ struct file_handle {
 	struct vnode* file; 
 	int flag; 
 	struct lock* fh_lock;
-       	volatile int nr_of_refs; 	
+    volatile int nr_of_refs; 	
 };
 
 int 
@@ -34,5 +34,9 @@ filetable_init(void);
 
 int
 sys_close(int fd, int* retval);
+
+int
+sys_read(int fd, void *buf, size_t buflen, int* retval); 
+
 
 #endif /* _FILESYSCALL_H_ */

@@ -124,6 +124,7 @@ sys_open(const char *userpfilename, int flags, int* retval) {
 	for(i=3; i<=OPEN_MAX; i++){
 		if(curproc->file_table[i]==NULL) {
 			fd = i; 
+			break;
 		}
 	}
 
@@ -198,13 +199,64 @@ sys_write(int fd, void *buf, size_t buflen, int* retval){
 		return err;
 	}	
 
-	current->offset += ku.uio_offset;
-	*retval = (int) ku.uio_offset; 
+	current->offset += buflen;
+	*retval = (int) buflen; 
 	
 	lock_release(current->fh_lock);
 	
 
 	return 0; 
+}
+
+int 
+sys_read(int fd, void *buf, size_t buflen, int* retval){
+	*retval = -1;
+	
+	if(fd>=OPEN_MAX||fd<0) {
+		return EBADF;  
+	}
+	if(curproc->file_table[fd] == NULL) {
+		return EBADF; 
+	}
+	
+	struct file_handle* current = curproc->file_table[fd];  
+
+	if (current->flag == O_WRONLY) return EBADF;
+	
+	struct iovec iov;
+	struct uio ku; 
+
+	lock_acquire(current->fh_lock);
+
+	iov.iov_ubase = (userptr_t)buf;
+	iov.iov_len = buflen; 
+	ku.uio_iov = &iov;
+	ku.uio_iovcnt = 1;
+	ku.uio_resid = buflen; // amount to read from the file
+	ku.uio_offset = current->offset;
+	ku.uio_segflg = UIO_USERSPACE;
+	ku.uio_rw = UIO_READ;
+	ku.uio_space = curproc->p_addrspace;
+
+	// case it was closed by another thread..
+	if(current-> file == NULL){
+		lock_release(current->fh_lock); 
+		return EIO; 
+	}
+
+	int err; 	
+	err = VOP_READ(current->file, &ku);
+	if(err) {
+		lock_release(current->fh_lock); 
+		return err;
+	}	
+
+	current->offset += buflen;
+
+	lock_release(current->fh_lock);
+
+	*retval = (int) buflen; 
+	return 0;
 }
 
 int
