@@ -12,6 +12,8 @@
 #include <uio.h>
 #include <kern/errno.h>
 #include <copyinout.h>
+#include <kern/seek.h>
+#include <kern/stat.h>
 
 /**
  * Init the file_table in the current thread.
@@ -286,6 +288,81 @@ sys_close(int fd, int* retval) {
 	return 0;
 
 }
+
+int
+sys_lseek(int fd, off_t pos, int whence, int* retval, int* retval2){
+	(void) pos; 
+	(void) whence;
+	(void) retval2;
+
+	int err; 
+	off_t newoffset, size; 
+	struct stat filestat;
+
+	if(fd>OPEN_MAX||fd<3) {
+		return EBADF;
+	}
+
+	if(curproc->file_table[fd]==NULL) {
+		return EBADF;
+	}
+
+	if(whence<0 || whence>2){
+		return EINVAL; 
+	}
+
+	struct file_handle* current = curproc->file_table[fd]; 
+
+	if(!VOP_ISSEEKABLE(current->file)) {
+		return ESPIPE; 
+	}
+
+	lock_acquire(current->fh_lock); 
+
+	err = VOP_STAT(current->file, &filestat); 
+	if(err){ 
+		lock_release(current->fh_lock); 
+		return err; 
+	}
+
+	size = filestat.st_size; 
+
+	if(whence == SEEK_SET) {
+		if(pos<0) {
+			lock_release(current->fh_lock); 
+			return EINVAL; 
+		}
+
+		newoffset = current->offset = pos; 
+	}
+	else if(whence == SEEK_CUR) {
+		if((current->offset + pos)<0){
+			lock_release(current->fh_lock); 
+			return EINVAL;
+		}
+
+		newoffset = current->offset + pos;
+		current->offset += pos;
+	}
+	// SEEK_END
+	else {
+		if((size + pos)<0){
+			lock_release(current->fh_lock); 
+			return EINVAL;
+		} 
+
+		newoffset = size + pos; 
+		current->offset = newoffset; 
+	}
+
+	lock_release(current->fh_lock); 
+
+	*retval = (int32_t)(newoffset>>32); 
+	*retval2 = (int32_t)(newoffset); 
+
+	return 0;  
+}
+
 
 /*
 void fh_destroy(struct file_handle **fh){

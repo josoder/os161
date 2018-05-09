@@ -36,7 +36,10 @@ int
 sys_close(int fd, int* retval);
 
 int
-sys_read(int fd, void *buf, size_t buflen, int* retval); 
+sys_read(int fd, void *buf, size_t buflen, int* retval);
+
+int
+sys_lseek(int fd, off_t pos, int whence, int* retval, int* retval2); 
 
 
 #endif /* _FILESYSCALL_H_ */

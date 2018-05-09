@@ -36,6 +36,7 @@
 #include <current.h>
 #include <syscall.h>
 #include <file_syscall.h>
+#include <copyinout.h>
 
 /*
  * System call dispatcher.
@@ -80,6 +81,9 @@ syscall(struct trapframe *tf)
 {
 	int callno;
 	int32_t retval;
+	// for 64bit args
+	int32_t retval2;
+	off_t pos; 
 	int err;
 
 	KASSERT(curthread != NULL);
@@ -124,6 +128,23 @@ syscall(struct trapframe *tf)
 		case SYS_read:
 		err = sys_read(tf->tf_a0, (void *) tf->tf_a1, tf->tf_a2, &retval);
 		break;
+
+		case SYS_lseek: 
+		// a0 = fd, a1 is unused, a2 and 3 will be pos
+
+		// this will pack both 32 bit args into pos (big-endian)
+		pos = ((off_t)tf->tf_a2) << 32 | tf->tf_a3; 
+
+		// need to copy whence from the userstack at sp+16
+		int whence; 
+		err = copyin((const_userptr_t)tf->tf_sp+16, &whence, sizeof(int));
+		if(err) break; 
+		err = sys_lseek(tf->tf_a0, pos, whence, &retval, &retval2); 
+		if(!err) {
+			tf->tf_v1 = retval2; 
+		}
+		break;
+
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
