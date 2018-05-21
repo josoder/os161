@@ -129,6 +129,18 @@ syscall(struct trapframe *tf)
 		err = sys_read(tf->tf_a0, (void *) tf->tf_a1, tf->tf_a2, &retval);
 		break;
 
+		case SYS_chdir:
+		err = sys_chdir((const char *)tf->tf_a0, &retval);
+		break;
+
+		case SYS___getcwd:
+		err = sys__getcwd((char *)tf->tf_a0, (size_t)tf->tf_a1, &retval);
+		break;
+
+		case SYS_dup2: 
+		err = sys_dup2(tf->tf_a0, tf->tf_a1, &retval);
+		break; 
+
 		case SYS_lseek: 
 		// a0 = fd, a1 is unused, a2 and 3 will be pos
 

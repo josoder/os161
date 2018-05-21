@@ -363,6 +363,124 @@ sys_lseek(int fd, off_t pos, int whence, int* retval, int* retval2){
 	return 0;  
 }
 
+int
+sys_chdir(const char *path, int *retval){
+	*retval = -1;
+	int res = 0;
+	char *kbuf; 
+	size_t len;
+	kbuf = (char *) kmalloc(sizeof(char)*PATH_MAX);
+	res = copyinstr((const_userptr_t)path, kbuf, PATH_MAX, &len);
+	if(res) {
+		kfree(kbuf);
+		return res;
+	}
+
+	res = vfs_chdir(kbuf);
+	if(res) {
+		kfree(kbuf);
+		return res;  
+	}
+
+	*retval = 0;
+	kfree(kbuf);
+	return 0; 
+}
+
+int 
+sys__getcwd(char *buf, size_t buflen, int *retval) {
+	*retval = -1; 
+
+	if(buf == NULL) {
+		return EFAULT;
+	}
+
+	char *kbuf; 
+
+	kbuf = kmalloc(sizeof(*buf)*buflen);
+	if(kbuf == NULL) {
+		return EINVAL;
+	}
+	
+	// check user pointer 
+	size_t len;
+	int result = 0;
+	result = copyinstr((const_userptr_t)buf, kbuf, PATH_MAX, &len);
+	if(result){
+		kfree(kbuf);
+		return EFAULT;
+	}
+
+	struct iovec iov;
+	struct uio ku; 
+
+	iov.iov_ubase = (userptr_t)buf;
+	iov.iov_len = (buflen-1); 
+	ku.uio_iov = &iov;
+	ku.uio_iovcnt = 1;
+	ku.uio_resid = buflen; // amount to read from the file
+	ku.uio_offset = (off_t)0;
+	ku.uio_segflg = UIO_USERSPACE;
+	ku.uio_rw = UIO_READ;
+	ku.uio_space = curproc->p_addrspace; 
+
+	result = vfs_getcwd(&ku); 
+	if(result) {
+		kfree(kbuf); 
+		return result;
+	}
+
+	// null terminate the string and return its length
+	buf[sizeof(buf)-1 - ku.uio_resid] = '\0';
+
+	*retval = strlen(buf);
+	kfree(kbuf);
+	return 0; 
+}
+
+int
+sys_dup2(int oldfd, int newfd, int *retval){
+	*retval = -1;
+	
+	if(oldfd > OPEN_MAX || newfd > OPEN_MAX || oldfd < 0 
+	|| newfd < 0){
+		return EBADF;
+	}	
+
+	struct file_handle* sourcehandle = curproc->file_table[oldfd]; 
+
+	if(sourcehandle == NULL) {
+		return EBADF;
+	}
+
+	if(oldfd == newfd) {
+		*retval = newfd;
+		return 0;
+	}
+	
+	lock_acquire(sourcehandle->fh_lock); 
+
+	struct file_handle* newhandle = curproc->file_table[newfd];
+
+	// If the new fd is initialized remove it and point it to the source
+	if (newhandle != NULL){
+		lock_acquire(newhandle->fh_lock); 
+		
+		if(newhandle->file != NULL){
+			vfs_close(newhandle->file);
+		}
+
+		lock_release(newhandle->fh_lock);
+		lock_destroy(newhandle->fh_lock);
+		kfree(newhandle); 
+		newhandle = NULL; 
+	}	
+
+	newhandle = kmalloc(sizeof(struct file_handle));
+	newhandle = sourcehandle;
+	*retval = newfd;
+	return 0;
+}
 
 /*
 void fh_destroy(struct file_handle **fh){

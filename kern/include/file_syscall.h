@@ -41,5 +41,13 @@ sys_read(int fd, void *buf, size_t buflen, int* retval);
 int
 sys_lseek(int fd, off_t pos, int whence, int* retval, int* retval2); 
 
+int
+sys_chdir(const char *path, int *retval); 
+
+int
+sys__getcwd(char *buf, size_t buflen, int *retval);
+
+int
+sys_dup2(int oldfd, int newfd, int *retval); 
 
 #endif /* _FILESYSCALL_H_ */
